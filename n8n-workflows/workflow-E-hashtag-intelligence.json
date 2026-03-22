@@ -1,0 +1,429 @@
+{
+  "name": "AMGO Sports — Hashtag Intelligence (Workflow E)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "270b479d-62c4-48e2-85df-fada20eabcd2",
+      "name": "Every Monday 7AM AEST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "amgo-hashtag-refresh",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "df94f9ad-03f8-4ef9-895e-a6975c33e0b3",
+      "name": "Manual Refresh Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        128,
+        -256
+      ],
+      "webhookId": "71b9f019-6fe2-4aeb-8f66-25fe762118c7",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aKlDEZx2U7bkiFAS",
+          "name": "AMGO Manual Trigger Api Auth Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-e-fetch-workflow-config",
+      "name": "Fetch Workflow Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        -480
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.appUrl }}/api/cricket-matches?upcoming=7",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "b07aa4b7-8f22-4612-8f2a-cf320892901d",
+      "name": "Fetch Upcoming Cricket Matches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        -480
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst options = { timeZone: 'Australia/Sydney' };\nconst monthName = now.toLocaleDateString('en-AU', { ...options, month: 'long' });\nconst year = now.toLocaleDateString('en-AU', { ...options, year: 'numeric' });\nconst weekNum = Math.ceil(now.getDate() / 7);\nconst weekLabel = `${year}-W${weekNum < 10 ? '0' : ''}${weekNum}`;\n\n// Get match data from DB response\nlet activeSeries = 'Australian domestic cricket season';\ntry {\n  const response = $input.first().json;\n  const matches = (response.data || []).map(m => m.matchTitle).filter(Boolean);\n  if (matches.length > 0) {\n    activeSeries = matches.slice(0, 3).join(', ');\n  }\n} catch(e) { /* no cricket data */ }\n\n// Determine cricket season context\nconst month = now.getMonth() + 1;\nlet season = '';\nif (month >= 11 || month <= 2) season = 'Summer: BBL season, international Tests/ODIs active';\nelse if (month >= 9 && month <= 10) season = 'Spring: Pre-season, Sheffield Shield starting';\nelse if (month >= 3 && month <= 5) season = 'Autumn: End of season, club finals';\nelse season = 'Winter: Off-season, pre-season training, gear upgrades';\n\nreturn [{\n  json: {\n    month: monthName,\n    year: year,\n    week_label: weekLabel,\n    season_context: season,\n    active_series: activeSeries,\n    generated_at: now.toISOString()\n  }\n}];"
+      },
+      "id": "44b45807-3c67-4b8a-8a23-e2e6dfd59e60",
+      "name": "Build Context for GPT-4o",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a professional Instagram hashtag strategist for AMGO Sports, a premium cricket equipment retailer in Hills Shire, NSW, Australia. You specialise in Australian cricket Instagram community marketing.\n\nYou MUST respond with a single valid JSON object only. No markdown, no explanation, just the JSON.",
+              "role": "system"
+            },
+            {
+              "content": "=Generate an optimised Instagram hashtag set for AMGO Sports for {{ $json.month }} {{ $json.year }}.\n\nCurrent cricket season context: {{ $json.season_context }}\nActive series/matches this week: {{ $json.active_series }}\n\nAMGO Sports stocks: SS, SG, SF, CA, GM, DSC, TON, Kookaburra\nLocation: Hills Shire, NSW, Australia\nAudience: Serious cricketers aged 16-45\n\nGenerate a JSON object with EXACTLY this structure and EXACTLY these counts:\n{\n  \"brand\": [5 hashtags — always start with \"#amgosports\", \"#amgosportsau\", then 3 more brand hashtags],\n  \"product\": [8 cricket equipment/gear hashtags relevant to products they sell],\n  \"cricket\": [8 general Australian cricket hashtags relevant RIGHT NOW given the season context],\n  \"regional\": [5 Australian/Hills Shire/NSW regional cricket hashtags],\n  \"trending\": [4 currently trending cricket Instagram hashtags for {{ $json.month }}]\n}\n\nRules:\n- brand: exactly 5 tags\n- product: exactly 8 tags\n- cricket: exactly 8 tags\n- regional: exactly 5 tags\n- trending: exactly 4 tags\n- Total: exactly 30 hashtags\n- All tags must start with #\n- No spaces within any single tag\n- Australian English where applicable\n- Mix high-reach (1M+) and niche (10K-100K) tags\n- Brand array ALWAYS starts with #amgosports and #amgosportsau\n- Include BBL/Test/Shield hashtags if that series is active\n- Never repeat the same hashtag across categories"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 600,
+          "temperature": 0.3
+        }
+      },
+      "id": "81c72a3e-943e-462b-94d6-2dd680501cbb",
+      "name": "GPT-4o-mini Hashtag Generator",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1008,
+        -480
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "qebgRAmjZnugsqC3",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json.text || $input.first().json.message?.content || '';\nconst cleaned = rawText.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  const match = cleaned.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    try { parsed = JSON.parse(match[0]); }\n    catch(e2) { throw new Error('Could not parse hashtag JSON: ' + cleaned.substring(0, 200)); }\n  } else {\n    throw new Error('Could not parse hashtag JSON: ' + cleaned.substring(0, 200));\n  }\n}\n\n// Validate category counts\nconst expected = { brand: 5, product: 8, cricket: 8, regional: 5, trending: 4 };\nfor (const [cat, count] of Object.entries(expected)) {\n  if (!Array.isArray(parsed[cat])) {\n    throw new Error(`Missing category in GPT response: ${cat}`);\n  }\n  if (parsed[cat].length !== count) {\n    throw new Error(`Category \"${cat}\" has ${parsed[cat].length} tags, expected ${count}`);\n  }\n}\n\nconst context = $('Build Context for GPT-4o').first().json;\n\nreturn [{\n  json: {\n    brand: parsed.brand,\n    product: parsed.product,\n    cricket: parsed.cricket,\n    regional: parsed.regional,\n    trending: parsed.trending,\n    week: context.week_label\n  }\n}];"
+      },
+      "id": "09e2efa5-421f-4831-8f1e-4f08d4b90ed3",
+      "name": "Parse & Validate Hashtags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Fetch Workflow Config').item.json.data.appUrl }}/api/hashtags/sync",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "2def2c17-5697-45cb-8608-25195a94775b",
+      "name": "Sync Hashtags to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        624,
+        -256
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const syncResponse = $input.first().json;\nconst context = $('Build Context for GPT-4o').first().json;\nconst parsed = $('Parse & Validate Hashtags').first().json;\n\nreturn [{\n  json: {\n    count: syncResponse.count || 30,\n    week: syncResponse.week || context.week_label,\n    month: context.month,\n    season: context.season_context,\n    brand_count: (parsed.brand || []).length,\n    product_count: (parsed.product || []).length,\n    cricket_count: (parsed.cricket || []).length,\n    regional_count: (parsed.regional || []).length,\n    trending_count: (parsed.trending || []).length\n  }\n}];"
+      },
+      "id": "95962f28-42df-44e9-86a3-78bb8e6c984f",
+      "name": "Build Confirmation Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.data.telegramChatId }}",
+        "text": "=🏷️ *AMGO Sports — Hashtag Library Refreshed!*\n\n✅ *{{ $json.count }} hashtags* synced to database for {{ $json.month }}\n📅 *Week:* {{ $json.week }}\n🏏 *Season:* {{ $json.season }}\n\n📊 *Breakdown:*\n• Brand: {{ $json.brand_count }}\n• Product: {{ $json.product_count }}\n• Cricket: {{ $json.cricket_count }}\n• Regional: {{ $json.regional_count }}\n• Trending: {{ $json.trending_count }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "e9364211-cb88-4cf1-a035-9dd756283974",
+      "name": "Telegram — Hashtag Refresh Done",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        -256
+      ],
+      "webhookId": "bcbb0778-65c0-4637-96a2-1f16bfba07a8",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "22358bdc-5d10-43fb-b8a8-23a99eddcac5",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        144,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-e-fetch-config-error",
+      "name": "Fetch Config (Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.data.telegramChatId }}",
+        "text": "=⚠️ *AMGO Sports — Hashtag Refresh Error*\n\n❌ *Error:* {{ $json.error?.message || 'Unknown error' }}\n📅 *Time:* {{ $now.toISO() }}\n\n_Previous hashtag library will be used for today's post._\nCheck n8n logs for details.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "bef7aa48-1732-401b-9acf-d95f4f6f2fec",
+      "name": "Telegram — Hashtag Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        592,
+        -48
+      ],
+      "webhookId": "0eba49a6-4cbf-4ee9-b36b-2dde34975014",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🏷️ Hashtag Intelligence — Workflow E (Refactored)\n\n**Runs:** Every Monday at 7:00 AM AEST (21:00 UTC Sunday)\nAlso triggered by Dashboard 'Refresh with AI' button\n\n**What it does:**\n1. Fetches workflow_config from DB (appUrl + telegramChatId)\n2. Fetches upcoming match days (next 7 days) from app API\n3. Determines current cricket season (BBL / Test / off-season)\n4. GPT-4o-mini (temp 0.3) generates exactly 30 season-aware hashtags\n5. Validates all 5 categories match expected counts (5+8+8+5+4)\n6. POSTs to /api/hashtags/sync → atomic Prisma transaction (delete all + createMany)\n7. Sends Telegram confirmation with per-category breakdown\n\n**No hardcoded URLs or chat IDs — all from DB settings.**\n\n**Cost:** ~$0.001 USD per run (gpt-4o-mini)",
+        "height": 528,
+        "width": 560,
+        "color": 2
+      },
+      "id": "e28497b9-964b-4608-9b70-d148cab79952",
+      "name": "📋 WORKFLOW E — OVERVIEW",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -464
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every Monday 7AM AEST": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Refresh Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workflow Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Upcoming Cricket Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Upcoming Cricket Matches": {
+      "main": [
+        [
+          {
+            "node": "Build Context for GPT-4o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context for GPT-4o": {
+      "main": [
+        [
+          {
+            "node": "GPT-4o-mini Hashtag Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o-mini Hashtag Generator": {
+      "main": [
+        [
+          {
+            "node": "Parse & Validate Hashtags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Validate Hashtags": {
+      "main": [
+        [
+          {
+            "node": "Sync Hashtags to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Hashtags to DB": {
+      "main": [
+        [
+          {
+            "node": "Build Confirmation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Confirmation Summary": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Hashtag Refresh Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Config (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Config (Error)": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Hashtag Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "c5c76b6b-77a7-4d47-af60-ac9b305a8ce8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1c68eb5cbfe02e345ad0ca1dd53bde5c5b851448dd13364323a45f867f43b70c"
+  },
+  "id": "nsQbvx0OO7XJUoVr",
+  "tags": []
+}

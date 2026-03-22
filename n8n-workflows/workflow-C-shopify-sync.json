@@ -1,0 +1,330 @@
+{
+  "id": "3KCSWETc5PKbZ5Zf",
+  "name": "AMGO Sports — Shopify Product Sync (Workflow C)",
+  "active": false,
+  "isArchived": false,
+  "createdAt": "2026-03-20T13:20:55.459Z",
+  "updatedAt": "2026-03-20T13:22:11.557Z",
+  "versionId": "d251d843-8fec-437e-bb91-99ee26c6f794",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "33722dfd-9941-4b20-9d53-0dbddab439fb",
+      "name": "Every Sunday 6AM AEST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [192, -576]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "amgo-shopify-sync",
+        "responseMode": "immediatelyReturn",
+        "options": {}
+      },
+      "id": "a22cad9c-4b30-4bae-bd85-edad1043d45c",
+      "name": "Manual Sync Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [192, -416],
+      "webhookId": "85a05164-e971-4fd4-bab2-c3549d0085de"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "id": "0088294d-0571-4736-931a-9e7935a0d6a6",
+      "name": "Either Trigger",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [416, -560]
+    },
+    {
+      "parameters": {
+        "url": "=https://{{ $env.SHOPIFY_STORE_DOMAIN }}/admin/api/2024-01/products.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "limit", "value": "50" },
+            { "name": "status", "value": "active" },
+            { "name": "fields", "value": "id,title,vendor,product_type,tags,variants,images,handle" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "588e7639-122a-4229-a205-75304d7679b6",
+      "name": "Fetch Active Products from Shopify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, -560]
+    },
+    {
+      "parameters": { "options": {} },
+      "id": "2d993774-49ed-45dc-86ae-8d6a2400d238",
+      "name": "Split Products Array",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [864, -560]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-filter-1",
+              "leftValue": "={{ $json.images.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63d016b7-fda6-4da8-a3d2-ef48a0d8fa52",
+      "name": "Filter Products with Images",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [1088, -576]
+    },
+    {
+      "parameters": {
+        "jsCode": "const product = $input.first().json;\nconst storeHandle = $env.SHOPIFY_STORE_DOMAIN?.replace('.myshopify.com','') || 'amgosports';\n\n// Determine category from product_type or tags\nconst tagLower = (product.tags || '').toLowerCase();\nconst typeLower = (product.product_type || '').toLowerCase();\nlet category = 'Other';\nif (typeLower.includes('bat') || tagLower.includes('bat')) category = 'Bats';\nelse if (typeLower.includes('glove') || tagLower.includes('glove')) category = 'Gloves';\nelse if (typeLower.includes('pad') || tagLower.includes('pad')) category = 'Protection';\nelse if (typeLower.includes('helmet') || tagLower.includes('helmet')) category = 'Helmets';\nelse if (typeLower.includes('ball') || tagLower.includes('ball')) category = 'Balls';\nelse if (typeLower.includes('bag') || tagLower.includes('bag')) category = 'Bags';\nelse if (typeLower.includes('cloth') || tagLower.includes('cloth')) category = 'Clothing';\n\n// Get first image\nconst imageUrl = product.images?.[0]?.src || '';\n\n// Get lowest price variant\nconst variants = product.variants || [];\nconst prices = variants.map(v => parseFloat(v.price)).filter(p => !isNaN(p));\nconst price = prices.length > 0 ? Math.min(...prices).toFixed(2) : '0.00';\n\n// Check stock\nconst inStock = variants.some(v => v.inventory_quantity > 0 || v.inventory_management === null);\n\nreturn [{\n  json: {\n    product_id: String(product.id),\n    title: product.title,\n    vendor: product.vendor,\n    price: price,\n    image_url: imageUrl,\n    product_url: `https://amgosports.com.au/products/${product.handle}`,\n    category: category,\n    in_stock: inStock ? 'TRUE' : 'FALSE',\n    synced_at: new Date().toISOString(),\n    featured: 'FALSE'\n  }\n}];"
+      },
+      "id": "6356978f-7e49-4fab-9e9d-5da7eb4e1046",
+      "name": "Normalize Product Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1296, -576]
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "operation": "clearSheet"
+      },
+      "id": "4b24f77c-f74f-45b3-a5fb-cd251e7e2498",
+      "name": "Clear Products Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [416, -256]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_WITH_GOOGLE_SHEET_ID",
+        "sheetName": "Products",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Product ID": "Product ID",
+            "Title": "Title",
+            "Vendor": "Vendor",
+            "Price": "Price",
+            "Image URL": "Image URL",
+            "Product URL": "Product URL",
+            "Category": "Category",
+            "In Stock": "In Stock",
+            "Synced At": "Synced At",
+            "Featured": "Featured"
+          }
+        },
+        "options": {}
+      },
+      "id": "d5e6861c-d923-4b86-964d-0ba48da84f28",
+      "name": "Write Header Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [640, -256]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_WITH_GOOGLE_SHEET_ID",
+        "sheetName": "Products",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Product ID": "={{ $json.product_id }}",
+            "Title": "={{ $json.title }}",
+            "Vendor": "={{ $json.vendor }}",
+            "Price": "={{ $json.price }}",
+            "Image URL": "={{ $json.image_url }}",
+            "Product URL": "={{ $json.product_url }}",
+            "Category": "={{ $json.category }}",
+            "In Stock": "={{ $json.in_stock }}",
+            "Synced At": "={{ $json.synced_at }}",
+            "Featured": "={{ $json.featured }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e4f77365-1e76-4fe3-b6c7-016bfcf2ae1b",
+      "name": "Write Products to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [864, -256]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn [{ json: { count: items.length, synced_at: new Date().toISOString() } }];"
+      },
+      "id": "f1860a7f-d564-4e3d-86b5-746e45da6733",
+      "name": "Count Products",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1072, -256]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.value.telegramChatId }}",
+        "text": "=🛍️ *AMGO Sports — Shopify Sync Complete*\n\n✅ Product library updated!\n📦 *Products synced:* {{ $json.count }}\n🕐 *Synced at:* {{ new Date($json.synced_at).toLocaleString('en-AU', {timeZone: 'Australia/Sydney'}) }}\n\n_Ready for Monday's Product Spotlight posts._",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "6cc48495-5c2f-48b2-b4e0-3c3fa3e97ea0",
+      "name": "Telegram — Sync Complete",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1296, -256],
+      "webhookId": "6ea5d262-bbbb-4128-ab7c-2a5eb1e372c7"
+    },
+    {
+      "parameters": {},
+      "id": "458666eb-42ac-47e3-92fe-839f1efea911",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [176, -16]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Config (Error)').item.json.value.telegramChatId }}",
+        "text": "=⚠️ *AMGO Sports — Shopify Sync Error*\n\n❌ *Error:* {{ $json.error?.message || 'Unknown error' }}\n📅 *Time:* {{ $now.toISO() }}\n\nPlease check n8n execution logs.",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "fbabe689-5b8c-4955-ac83-8581d808be23",
+      "name": "Telegram — Sync Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [400, -16],
+      "webhookId": "e4b63eff-c6c4-409e-b299-e2852d2ffa2d"
+    },
+    {
+      "parameters": {
+        "content": "## 🛍️ Shopify Product Sync — Workflow C\n\n**Runs:** Every Sunday at 6:00 AM AEST (20:00 UTC Saturday)\n**Also triggered:** Via dashboard 'Sync from Shopify' button\n\n**What it does:**\n1. Fetches all active products from Shopify Admin API\n2. Filters products that have at least one image\n3. Normalises: category, price, image URL, in-stock status\n4. Clears and rewrites the Products tab in Google Sheets\n5. Sends Telegram confirmation with product count\n\n**Products Tab columns (in order):**\nProduct ID | Title | Vendor | Price | Image URL |\nProduct URL | Category | In Stock | Synced At | Featured\n\n**Setup Required:**\n- Replace SHOPIFY_CREDENTIAL_ID with Shopify_AMGO credential\n- Replace GSHEETS_CREDENTIAL_ID with GoogleSheets_AMGO credential\n- Replace TELEGRAM_CREDENTIAL_ID with Telegram_AMGO_Bot credential\n- Replace GOOGLE_SHEET_ID\n- Replace TELEGRAM_CHAT_ID",
+        "height": 568,
+        "width": 520,
+        "color": 5
+      },
+      "id": "f6651049-cd12-420c-a590-f9ccbff7e5a6",
+      "name": "📋 WORKFLOW C — OVERVIEW",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-400, -624]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.APP_URL }}/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-c-fetch-workflow-config",
+      "name": "Fetch Workflow Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, -400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.APP_URL }}/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-c-fetch-config-error",
+      "name": "Fetch Config (Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [288, -16],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Sunday 6AM AEST": {
+      "main": [[{ "node": "Either Trigger", "type": "main", "index": 0 }]]
+    },
+    "Manual Sync Trigger": {
+      "main": [[{ "node": "Either Trigger", "type": "main", "index": 1 }]]
+    },
+    "Either Trigger": {
+      "main": [[{ "node": "Fetch Workflow Config", "type": "main", "index": 0 }]]
+    },
+    "Fetch Workflow Config": {
+      "main": [[{ "node": "Fetch Active Products from Shopify", "type": "main", "index": 0 }]]
+    },
+    "Fetch Active Products from Shopify": {
+      "main": [[{ "node": "Split Products Array", "type": "main", "index": 0 }]]
+    },
+    "Split Products Array": {
+      "main": [[{ "node": "Filter Products with Images", "type": "main", "index": 0 }]]
+    },
+    "Filter Products with Images": {
+      "main": [[{ "node": "Normalize Product Data", "type": "main", "index": 0 }]]
+    },
+    "Normalize Product Data": {
+      "main": [[{ "node": "Clear Products Tab", "type": "main", "index": 0 }]]
+    },
+    "Clear Products Tab": {
+      "main": [[{ "node": "Write Header Row", "type": "main", "index": 0 }]]
+    },
+    "Write Header Row": {
+      "main": [[{ "node": "Write Products to Sheet", "type": "main", "index": 0 }]]
+    },
+    "Write Products to Sheet": {
+      "main": [[{ "node": "Count Products", "type": "main", "index": 0 }]]
+    },
+    "Count Products": {
+      "main": [[{ "node": "Telegram — Sync Complete", "type": "main", "index": 0 }]]
+    },
+    "Error Trigger": {
+      "main": [[{ "node": "Fetch Config (Error)", "type": "main", "index": 0 }]]
+    },
+    "Fetch Config (Error)": {
+      "main": [[{ "node": "Telegram — Sync Error", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "tags": []
+}

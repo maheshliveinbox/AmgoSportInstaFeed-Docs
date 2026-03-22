@@ -1,0 +1,448 @@
+{
+  "name": "AMGO Sports — Cricket Match Intelligence (Workflow D)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-d-schedule",
+      "name": "Daily 7:30AM AEST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        80,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-d-fetch-workflow-config",
+      "name": "Fetch Workflow Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        272,
+        32
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.cricapi.com/v1/currentMatches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "offset",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "node-d-fetch-matches",
+      "name": "Fetch Today Cricket Matches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        32
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "VyQaV4qB1VqQKnbw",
+          "name": "CricketAPI Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst apiData = $input.first().json;\n\nif (!apiData?.data || !Array.isArray(apiData.data)) {\n  return [{ json: { date: today, is_match_day: false, match_title: '', teams: '', venue: '', start_time: '', notes: 'CricAPI error or no data' } }];\n}\n\nconst RELEVANT_TEAMS = ['australia', 'aus', 'nsw', 'queensland', 'victoria', 'south australia', 'western australia', 'tasmania', 'sydney', 'melbourne', 'brisbane', 'perth', 'adelaide', 'hobart'];\nconst RELEVANT_SERIES = ['bbl', 'big bash', 'sheffield shield', 'test', 'odi', 'australia', 't20i', 'aus'];\nconst RELEVANT_VENUES = ['australia', 'sydney', 'melbourne', 'brisbane', 'perth', 'adelaide', 'hobart', 'scg', 'mcg', 'gabba', 'waca', 'manuka', 'cairns'];\n\nconst isAustralian = (match) => {\n  const searchText = [match.name || '', match.matchType || '', match.series || '', match.venue || '', ...(match.teams || [])].join(' ').toLowerCase();\n  return RELEVANT_TEAMS.some(t => searchText.includes(t)) || RELEVANT_SERIES.some(s => searchText.includes(s)) || RELEVANT_VENUES.some(v => searchText.includes(v));\n};\n\nconst currentOrUpcoming = apiData.data.filter(m => !m.matchEnded && isAustralian(m));\n\nif (currentOrUpcoming.length === 0) {\n  return [{ json: { date: today, is_match_day: false, match_title: '', teams: '', venue: '', start_time: '', notes: `No Australian matches found. Total matches checked: ${apiData.data.length}` } }];\n}\n\nconst match = currentOrUpcoming[0];\nconst teams = (match.teams || []).join(' vs ');\nconst startTime = match.dateTimeGMT ? new Date(match.dateTimeGMT).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit' }) : 'TBC';\n\nreturn [{ json: { date: today, is_match_day: true, match_title: match.name || 'Australian Cricket Match', teams: teams, venue: match.venue || 'Australia', start_time: startTime + ' AEST', notes: `Match type: ${match.matchType || 'unknown'} | Status: ${match.status || 'upcoming'}` } }];"
+      },
+      "id": "node-d-analyse",
+      "name": "Detect Australian Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d-cond-1",
+              "leftValue": "={{ $json.is_match_day }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-d-check-flag",
+      "name": "Is Match Day?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [
+        848,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Fetch Workflow Config').item.json.data.appUrl }}/api/cricket-matches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $json.date }}"
+            },
+            {
+              "name": "isMatchDay",
+              "value": "={{ true }}"
+            },
+            {
+              "name": "matchTitle",
+              "value": "={{ $json.match_title }}"
+            },
+            {
+              "name": "teams",
+              "value": "={{ $json.teams }}"
+            },
+            {
+              "name": "venue",
+              "value": "={{ $json.venue }}"
+            },
+            {
+              "name": "startTime",
+              "value": "={{ $json.start_time }}"
+            },
+            {
+              "name": "notes",
+              "value": "={{ $json.notes }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-d-write-match",
+      "name": "Write Match Day to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1088,
+        -64
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Fetch Workflow Config').item.json.data.appUrl }}/api/cricket-matches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $json.date }}"
+            },
+            {
+              "name": "isMatchDay",
+              "value": "={{ false }}"
+            },
+            {
+              "name": "notes",
+              "value": "={{ $json.notes }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-d-write-normal",
+      "name": "Write Normal Day to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1088,
+        128
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.data.telegramChatId }}",
+        "text": "=🏆 *MATCH DAY DETECTED!*\n\n📅 *Date:* {{ $('Detect Australian Match').item.json.date }}\n🏏 *Match:* {{ $('Detect Australian Match').item.json.match_title }}\n⚔️ *Teams:* {{ $('Detect Australian Match').item.json.teams }}\n🏙️ *Venue:* {{ $('Detect Australian Match').item.json.venue }}\n🕐 *Start:* {{ $('Detect Australian Match').item.json.start_time }}\n\n_An additional Match Day post will be generated alongside today's regular theme post in 30 minutes._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "node-d-match-alert",
+      "name": "Telegram — Match Day Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        -64
+      ],
+      "webhookId": "d1590dfc-4131-433d-aa03-264fa4f3e9c5",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "node-d-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        80,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-d-fetch-config-error",
+      "name": "Fetch Config (Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        304,
+        336
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Fetch Config (Error)').item.json.value.appUrl }}/api/cricket-matches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $now.toISO().split('T')[0] }}"
+            },
+            {
+              "name": "isMatchDay",
+              "value": "={{ false }}"
+            },
+            {
+              "name": "notes",
+              "value": "CricAPI error"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-d-error-fallback",
+      "name": "Write Fallback to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        336
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🏏 Cricket Match Intelligence — Workflow D\n\n**Runs:** Daily at 7:30 AM AEST (21:30 UTC) — 30 min before Workflow A\n\n**What it does:**\n1. Fetches workflow config from DB settings\n2. Fetches current/upcoming matches from CricAPI\n3. Filters for Australian-relevant matches\n4. If match found → POSTs isMatchDay=true + match details to /api/cricket-matches\n5. If no match → POSTs isMatchDay=false\n6. If match day → sends Telegram alert\n\n**Workflow A fetches /api/cricket-matches** at 8:00 AM.\nIf isMatchDay=true → generates BOTH daily theme post AND match day post (2 PENDING posts)\n\n**Storage:** PostgreSQL via /api/cricket-matches\n\n**Env vars required in n8n:**\n- CRICAPI_KEY",
+        "height": 468,
+        "width": 548,
+        "color": 3
+      },
+      "id": "sticky-d-overview",
+      "name": "📋 WORKFLOW D — OVERVIEW",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        -16
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 7:30AM AEST": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workflow Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today Cricket Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Today Cricket Matches": {
+      "main": [
+        [
+          {
+            "node": "Detect Australian Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Australian Match": {
+      "main": [
+        [
+          {
+            "node": "Is Match Day?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Match Day?": {
+      "main": [
+        [
+          {
+            "node": "Write Match Day to DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write Normal Day to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Match Day to DB": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Match Day Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Config (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Config (Error)": {
+      "main": [
+        [
+          {
+            "node": "Write Fallback to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Australia/Sydney",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "d20bf7a6-5c4e-44a3-99de-f2c36ec131c9",
+  "meta": {
+    "instanceId": "1c68eb5cbfe02e345ad0ca1dd53bde5c5b851448dd13364323a45f867f43b70c"
+  },
+  "id": "eNPfnBUDd0Wo2QaS",
+  "tags": []
+}

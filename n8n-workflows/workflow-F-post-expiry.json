@@ -1,0 +1,332 @@
+{
+  "name": "AMGO Sports — Post Auto-Expiry (Workflow F)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "50 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-trigger",
+      "name": "Daily 7:50 AM AEST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-f-fetch-workflow-config",
+      "name": "Fetch Workflow Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        384,
+        144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.appUrl }}/api/posts?status=PENDING&before={{ $now.minus({ hours: 23 }).toUTC().toISO() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-fetch-stale",
+      "name": "Fetch Stale Pending Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        608,
+        144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $input.first().json.data;\nif (!posts || posts.length === 0) return [];\nreturn posts.map(p => ({ json: { postId: p.postId } }));"
+      },
+      "id": "node-extract-posts",
+      "name": "Extract Stale Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Fetch Workflow Config').item.json.data.appUrl }}/api/posts/{{ $json.postId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "EXPIRED"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-expire-post",
+      "name": "Expire Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1056,
+        144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "node-aggregate",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.data.telegramChatId }}",
+        "text": "=⏰ *{{ $json.data.length }} stale post(s) expired*\n\nPending posts older than 23 hours have been marked as EXPIRED.\nWorkflow A generates a new post at 8:00 AM.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "node-telegram-expired",
+      "name": "Telegram — Posts Expired",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1488,
+        144
+      ],
+      "webhookId": "5f08c6a3-5916-4f2b-aeaf-24650fc53748",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "node-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        384,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-f-fetch-config-error",
+      "name": "Fetch Config (Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        608,
+        352
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.data.telegramChatId }}",
+        "text": "=⚠️ *AMGO Sports — Expiry Job Error*\n\n❌ *Error:* {{ $json.error?.message || 'Unknown error' }}\n📅 *Time:* {{ $now.toISO() }}\n\nCheck n8n execution logs.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "node-error-notify",
+      "name": "Telegram — Expiry Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        832,
+        352
+      ],
+      "webhookId": "b4b66688-c264-4898-870f-a0f189a0213d",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## ⏰ AMGO Sports — Post Auto-Expiry\n\n**Workflow F: Daily Cleanup at 7:50 AM AEST**\n\nRuns 10 minutes before Workflow A (8:00 AM) to clean up\nany posts that were never actioned.\n\n**Logic:**\n1. Fetch workflow config from DB settings\n2. Fetch all PENDING posts older than 23 hours\n3. Extract each post ID (returns empty → stops if none)\n4. PATCH each post status to EXPIRED\n5. Send Telegram alert with count\n\n**If no stale posts exist, nothing happens.**",
+        "height": 348,
+        "width": 480,
+        "color": 5
+      },
+      "id": "sticky-overview-f",
+      "name": "📋 WORKFLOW F — OVERVIEW",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        304
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 7:50 AM AEST": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workflow Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Stale Pending Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Stale Pending Posts": {
+      "main": [
+        [
+          {
+            "node": "Extract Stale Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Stale Posts": {
+      "main": [
+        [
+          {
+            "node": "Expire Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expire Post": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Posts Expired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Config (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Config (Error)": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Expiry Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Australia/Sydney",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "5ed23a5e-8dec-4b78-81d1-df9dc5eb16b3",
+  "meta": {
+    "instanceId": "1c68eb5cbfe02e345ad0ca1dd53bde5c5b851448dd13364323a45f867f43b70c"
+  },
+  "id": "P45hrnkaLzcnqurO",
+  "tags": []
+}

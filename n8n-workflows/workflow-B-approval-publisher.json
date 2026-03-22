@@ -1,0 +1,604 @@
+{
+  "name": "AMGO Sports — Approval Handler & Instagram Publisher (Workflow B)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "amgo-approve",
+        "responseMode": "immediatelyReturn",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "3326ab05-3517-451f-ac12-e261fbb483f0",
+      "name": "Dashboard Approval Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -160
+      ],
+      "webhookId": "amgo-dashboard-approve"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst action = body.action || 'ignore';\nconst post_id = body.post_id || '';\nconst approved_by = body.approved_by || 'Dashboard';\nif (!post_id) throw new Error('Missing post_id in request body');\nreturn [{ json: { action, post_id, approved_by, received_at: new Date().toISOString() } }];"
+      },
+      "id": "6d8e4ae8-7976-49b9-9819-35ff8ba63cce",
+      "name": "Extract Action & Post ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-b-fetch-workflow-config",
+      "name": "Fetch Workflow Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "regenerate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "246567a7-6bce-4361-9445-2a4bc46b4b90",
+      "name": "Route on Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        576,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Fetch Workflow Config').item.json.value.appUrl }}/api/posts/{{ $('Extract Action & Post ID').item.json.post_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "e72a4494-3647-415f-af60-fec0630d6c98",
+      "name": "Fetch Post from API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v1/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "17572e20-9a47-4d33-b8f7-a5f0a6f14112",
+      "name": "Post Image via Blotato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3kQTweG6eIJ2I2Sl",
+          "name": "Contact Submission Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "02344ef9-a639-4bdf-aef9-7c1d8b816b31",
+      "name": "Wait 30s (Blotato)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        48
+      ],
+      "webhookId": "blotato-poll-wait"
+    },
+    {
+      "parameters": {
+        "url": "=https://backend.blotato.com/v1/posts/{{ $('Post Image via Blotato').item.json.post?.id || $('Post Image via Blotato').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "b7e811bb-7e0a-48e0-bbc1-adb5cf8f87c2",
+      "name": "Poll Blotato Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1424,
+        48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3kQTweG6eIJ2I2Sl",
+          "name": "Contact Submission Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Fetch Workflow Config').item.json.value.appUrl }}/api/posts/{{ $('Extract Action & Post ID').item.json.post_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "b448a9a0-60a4-4c10-bf8d-e20e85124959",
+      "name": "Update DB — POSTED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1648,
+        48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.value.telegramChatId }}",
+        "text": "=✅ *Posted to Instagram!*\n\n🏏 *{{ $('Fetch Post from API').item.json.data.theme }}*\n📅 {{ $('Fetch Post from API').item.json.data.date }}\n👤 *{{ $('Extract Action & Post ID').item.json.approved_by }}*\n\n🔗 {{ $('Poll Blotato Status').item.json.permalink || 'https://www.instagram.com/amgosports' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "2c844b1b-6cc8-41df-bade-3ed490c51341",
+      "name": "Telegram — Post Live Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1872,
+        48
+      ],
+      "webhookId": "8530c366-ce69-47fc-8a08-44198a8161c8",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Fetch Workflow Config').item.json.value.appUrl }}/api/posts/{{ $('Extract Action & Post ID').item.json.post_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee7d2e6c-e545-438b-8ca3-bdceec1495c0",
+      "name": "Update DB — REJECTED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        224
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.value.telegramChatId }}",
+        "text": "=❌ *Post Rejected*\n\n*{{ $('Extract Action & Post ID').item.json.post_id }}* rejected via Dashboard.\n_Next post: tomorrow at 8 AM._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "b3acaaf2-0739-4232-a6cc-92ed6da8ab26",
+      "name": "Telegram — Rejected Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        992,
+        224
+      ],
+      "webhookId": "0c54c627-97c2-4228-ab6a-aded2ce8eb20",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=YOUR_N8N_URL/webhook/amgo-manual-trigger",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b36423e-76b2-4e28-89f4-f17c860fc450",
+      "name": "Trigger Workflow A (Regenerate)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Workflow Config').item.json.value.telegramChatId }}",
+        "text": "=✏️ *Regenerating Post...*\n\nNew post being generated. Check your email for the new preview shortly.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "13320e47-66c3-44d6-9c62-05c933926978",
+      "name": "Telegram — Regenerating Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        992,
+        416
+      ],
+      "webhookId": "d29a000f-985a-4b5b-b257-fab1fc5d7585",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "ee39bac8-d2df-4f3e-9efe-8b538e38619e",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        752,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://c4gc4s8s40wskwcw4gs4g0ck.65.109.224.127.sslip.io/api/settings?key=workflow_config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-b-fetch-config-error",
+      "name": "Fetch Config (Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        640
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YApp08XHCeWyQbUD",
+          "name": "AMGO Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Fetch Config (Error)').item.json.value.telegramChatId }}",
+        "text": "=⚠️ *AMGO Sports — Publish Error*\n\n❌ *Error:* {{ $json.error?.message || 'Unknown error' }}\n📅 *Time:* {{ $now.toISO() }}\n\nCheck n8n logs and retry from the dashboard.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "63e35715-d05c-4b23-a0d1-2437cf16e6ac",
+      "name": "Telegram — Publish Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        640
+      ],
+      "webhookId": "daf99299-b417-46d2-bf03-40c9be18e614",
+      "credentials": {
+        "telegramApi": {
+          "id": "TPl936nnf2IhEwwW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🏏 AMGO Sports — Approval Handler & Publisher\n\n**Workflow B: Dashboard Webhook → Instagram Post**\n\nTriggered by the Next.js Dashboard API routes.\nDashboard calls this webhook with a POST payload:\n\n```json\n{ \"action\": \"approve|reject|regenerate\",\n  \"post_id\": \"AMGO_2026-03-15\",\n  \"approved_by\": \"Dashboard\" }\n```\n\n**Routes:**\n- approve → Fetch Post from API → Blotato image → Update DB POSTED → Telegram alert\n- reject → Update DB REJECTED → Telegram alert\n- regenerate → Trigger Workflow A → Telegram alert\n\n**Data source: PostgreSQL via /api/posts/[postId] (no Google Sheets)**\n\n**Webhook path for dashboard .env:**\nN8N_TRIGGER_APPROVE_PATH=/webhook/amgo-approve",
+        "height": 532,
+        "width": 568,
+        "color": 4
+      },
+      "id": "d4a9d56a-d81c-4d26-9224-6bc15381804d",
+      "name": "📋 WORKFLOW B — OVERVIEW",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        256
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Dashboard Approval Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Action & Post ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Action & Post ID": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workflow Config": {
+      "main": [
+        [
+          {
+            "node": "Route on Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route on Action": {
+      "main": [
+        [
+          {
+            "node": "Fetch Post from API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update DB — REJECTED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Workflow A (Regenerate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Post from API": {
+      "main": [
+        [
+          {
+            "node": "Post Image via Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Image via Blotato": {
+      "main": [
+        [
+          {
+            "node": "Wait 30s (Blotato)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30s (Blotato)": {
+      "main": [
+        [
+          {
+            "node": "Poll Blotato Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Blotato Status": {
+      "main": [
+        [
+          {
+            "node": "Update DB — POSTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update DB — POSTED": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Post Live Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update DB — REJECTED": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Rejected Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Workflow A (Regenerate)": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Regenerating Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Config (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Config (Error)": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Publish Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "e27a15d4-f791-4aa2-b053-28bf19f4da2a",
+  "meta": {
+    "instanceId": "1c68eb5cbfe02e345ad0ca1dd53bde5c5b851448dd13364323a45f867f43b70c"
+  },
+  "id": "wwFz228KLeVlFsqb",
+  "tags": []
+}
