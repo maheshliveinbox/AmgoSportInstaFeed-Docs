@@ -147,8 +147,9 @@ See `docs/features/` for detailed documentation on each feature:
 - [Shopify Product Integration](features/03-shopify-product-integration.md)
 - [Notification & Approval Flow](features/04-telegram-approval-flow.md)
 - [AI Video Reel Generation](features/05-ai-video-reel-generation.md)
-- [Dashboard](features/06-nextjs-dashboard.md)
+- [Dashboard Overview](features/06-nextjs-dashboard.md)
 - [Hashtag Intelligence](features/07-hashtag-intelligence.md)
+- [**Dashboard Full Reference**](dashboard.md) ← comprehensive page-by-page guide with screenshots
 
 ---
 
