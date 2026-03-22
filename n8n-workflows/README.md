@@ -1,6 +1,6 @@
 # AMGO Sports — n8n Workflows
 
-All 5 n8n workflow JSON files are in this folder. Import them into your n8n instance in the order listed below.
+All 6 n8n workflow JSON files are in this folder. Import them into your n8n instance in the order listed below.
 
 > For full setup instructions see [Setup Guide 04](../docs/setup/04-n8n-import.md)
 
@@ -15,6 +15,7 @@ All 5 n8n workflow JSON files are in this folder. Import them into your n8n inst
 | `workflow-C-shopify-sync.json` | **C — Shopify Product Sync** | Schedule + Dashboard button | 6:00 AM AEST Sundays |
 | `workflow-D-cricket-monitor.json` | **D — Cricket Match Intelligence** | Schedule | 7:30 AM AEST daily |
 | `workflow-E-hashtag-intelligence.json` | **E — Hashtag Intelligence** | Schedule + Dashboard button | 7:00 AM AEST Mondays |
+| `workflow-F-post-expiry.json` | **F — Post Auto-Expiry** | Schedule | 7:50 AM AEST daily |
 
 ---
 
@@ -43,7 +44,8 @@ Workflow A generates post
 2. Activate Workflow D  →  runs 30 min before A
 3. Activate Workflow E  →  runs 1 hr before A on Mondays
 4. Activate Workflow C  →  syncs products before Monday's post
-5. Activate Workflow A  →  main daily generator (activate last)
+5. Activate Workflow F  →  post expiry cleanup (activate before A)
+6. Activate Workflow A  →  main daily generator (activate last)
 ```
 
 ---
@@ -54,6 +56,7 @@ Workflow A generates post
 Sunday    06:00  → Workflow C: Shopify product sync
 Monday    07:00  → Workflow E: Hashtag intelligence refresh
 Daily     07:30  → Workflow D: Cricket match detection
+Daily     07:50  → Workflow F: Auto-expire stale PENDING posts
 Daily     08:00  → Workflow A: Content generation + notifications
 On demand        → Workflow B: Triggered by dashboard actions
 ```

@@ -38,12 +38,13 @@ AMGO Sports Content Engine is a **fully automated, AI-powered Instagram content 
 
 ```
 AMGO Sports Content Engine
-├── n8n Workflows (5 total)
-│   ├── Workflow A — Daily Content Generator (GPT-4o + DALL·E 3) + email notification
+├── n8n Workflows (6 total)
+│   ├── Workflow A — Daily Content Generator (GPT-4o + DALL·E 3) + Telegram notification
 │   ├── Workflow B — Approval Handler & Publisher (Blotato) — dashboard-triggered
 │   ├── Workflow C — Shopify Product Sync (weekly)
 │   ├── Workflow D — Cricket Schedule Monitor (daily)
-│   └── Workflow E — Hashtag Intelligence Refresh (weekly)
+│   ├── Workflow E — Hashtag Intelligence Refresh (weekly)
+│   └── Workflow F — Post Auto-Expiry (daily, runs before A)
 │
 ├── Next.js Dashboard (this project)
 │   ├── /           Dashboard home + stats + pending approval
@@ -172,6 +173,7 @@ See `docs/setup/` for step-by-step guides:
 | `workflow-C-shopify-sync.json` | Shopify Product Sync | Weekly Sunday 6 AM + dashboard button |
 | `workflow-D-cricket-monitor.json` | Cricket Match Monitor | Daily 7:30 AM AEST |
 | `workflow-E-hashtag-intelligence.json` | Hashtag Intelligence | Weekly Monday 7 AM + dashboard button |
+| `workflow-F-post-expiry.json` | Post Auto-Expiry | Daily 7:50 AM AEST |
 
 ---
 
