@@ -25,8 +25,7 @@ All 6 n8n workflow JSON files are in this folder. Import them into your n8n inst
 
 ```
 Workflow A generates post
-  → Telegram: photo preview ("Check your email")
-  → Email: HTML preview + "Review in Dashboard" button
+  → Telegram: photo preview + post details
   → Dashboard: operator approves/rejects/regenerates
   → Dashboard calls POST /webhook/amgo-approve
   → Workflow B executes the action
@@ -68,14 +67,14 @@ On demand        → Workflow B: Triggered by dashboard actions
 | Credential Name | Type | Used By |
 |----------------|------|---------|
 | `OpenAI_AMGO` | OpenAI API | A, E |
-| `Telegram_AMGO_Bot` | Telegram API | A, B, C, D, E |
-| `Gmail_AMGO` | Gmail OAuth2 | A |
-| `GoogleSheets_AMGO` | Google Sheets OAuth2 | A, B, C, D, E |
+| `FalAI_AMGO` | HTTP Header Auth | A |
+| `Imgbb_AMGO` | HTTP Query Auth | A |
+| `Telegram_AMGO_Bot` | Telegram API | A, B, C, D, E, F |
+| `GoogleSheets_AMGO` | Google Sheets OAuth2 | C |
 | `Blotato_AMGO` | HTTP Header Auth | B |
-| `RunwayML_AMGO` | HTTP Header Auth | B (Reel path) |
-| `Shopify_AMGO` | HTTP Header Auth | C |
+| `CricAPI_AMGO` | HTTP Query Auth | D |
 
-> CricAPI key is pasted directly in Workflow D's HTTP Request node.
+> Shopify is accessed via n8n environment variables (`SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ACCESS_TOKEN`) — no named n8n credential needed.
 
 ---
 
@@ -98,17 +97,15 @@ Before activating, search and replace in each JSON file:
 | Placeholder | Replace with |
 |------------|-------------|
 | `REPLACE_WITH_OPENAI_CREDENTIAL_ID` | Your OpenAI_AMGO credential ID |
+| `REPLACE_WITH_FALAI_CREDENTIAL_ID` | Your FalAI_AMGO credential ID |
+| `REPLACE_WITH_IMGBB_CREDENTIAL_ID` | Your Imgbb_AMGO credential ID |
 | `REPLACE_WITH_TELEGRAM_CREDENTIAL_ID` | Your Telegram_AMGO_Bot credential ID |
 | `REPLACE_WITH_TELEGRAM_CHAT_ID` | Your numeric Telegram chat ID |
-| `REPLACE_WITH_GMAIL_CREDENTIAL_ID` | Your Gmail_AMGO credential ID |
-| `REPLACE_WITH_YOUR_EMAIL` | Operator email address |
 | `REPLACE_WITH_GSHEETS_CREDENTIAL_ID` | Your GoogleSheets_AMGO credential ID |
 | `REPLACE_WITH_GOOGLE_SHEET_ID` | Your Google Sheet ID |
 | `REPLACE_WITH_BLOTATO_CREDENTIAL_ID` | Your Blotato_AMGO credential ID |
 | `REPLACE_WITH_BLOTATO_IG_ACCOUNT_ID` | Instagram account ID from Blotato |
-| `REPLACE_WITH_RUNWAY_CREDENTIAL_ID` | Your RunwayML_AMGO credential ID |
-| `REPLACE_WITH_SHOPIFY_CREDENTIAL_ID` | Your Shopify_AMGO credential ID |
-| `REPLACE_WITH_CRICAPI_KEY` | Your CricAPI key string |
+| `REPLACE_WITH_CRICAPI_CREDENTIAL_ID` | Your CricAPI_AMGO credential ID |
 | `REPLACE_WITH_DASHBOARD_URL` | Your deployed dashboard URL |
 | `YOUR_N8N_URL` | Your n8n instance base URL |
 
